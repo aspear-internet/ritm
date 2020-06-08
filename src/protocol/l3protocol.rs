@@ -4,22 +4,19 @@ use std::convert::TryInto;
 
 pub fn get_l3_protocol(buf: &[u8]) -> L3ProtocolType {
     let v = rtrim_bits(buf[0], 4) >> 4;
-    if v == 4 {
-        return L3ProtocolType::IPv4;
-    }
-    if v == 6 {
-        return L3ProtocolType::IPv6;
-    }
 
-    return L3ProtocolType::Unknown;
+    match v {
+        4 => return L3ProtocolType::IPv4,
+        6 => return L3ProtocolType::IPv6,
+        _ => return L3ProtocolType::Unknown
+    }
 }
 
-pub fn set_l3_protocol(buf: &mut [u8], proto: L3ProtocolType)
-{
+pub fn set_l3_protocol(buf: &mut [u8], proto: L3ProtocolType) {
     let mut v = ltrim_bits(buf[0], 4);
     match proto {
-        L3ProtocolType::IPv4 => v |= 4 << 4,
-        L3ProtocolType::IPv6 => v |= 6 << 4,
+        L3ProtocolType::IPv4    => v |= 4    << 4,
+        L3ProtocolType::IPv6    => v |= 6    << 4,
         L3ProtocolType::Unknown => v |= 0xFF << 4
     }
 
@@ -61,7 +58,7 @@ impl<'a> IPv4Adapter<'_>
     }
 
     pub fn get_frag_flags(&self) -> u8 {
-        rtrim_bits(self.buf[0x06], 5)
+        rtrim_bits(self.buf[0x06], 5) >> 5
     }
 
     pub fn get_frag_offset(&self) -> u16 {
@@ -175,13 +172,13 @@ impl<'a> IPv6Adapter<'_>
     }
 
     pub fn set_flow_label(&mut self, label: u32) {
-        let data = rtrim_bits(u32::from_be_bytes([self.buf[0x00], self.buf[0x01], self.buf[0x02], self.buf[0x03]]), 12) | label >> 4;
-        self.buf[0x00..0x03].copy_from_slice(&data.to_be_bytes());
+        let data = rtrim_bits(u32::from_be_bytes([self.buf[0x00], self.buf[0x01], self.buf[0x02], self.buf[0x03]]), 12) | label;
+        self.buf[0x00..0x04].copy_from_slice(&data.to_be_bytes());
     }
 
     pub fn set_tlen(&mut self, tlen: u16) {
         let plen = tlen - 40;
-        self.buf[0x04..0x05].copy_from_slice(&plen.to_be_bytes());
+        self.buf[0x04..0x06].copy_from_slice(&plen.to_be_bytes());
     }
 
     pub fn set_ttl(&mut self, ttl: u8) {
@@ -189,7 +186,15 @@ impl<'a> IPv6Adapter<'_>
     }
 
     pub fn set_protocol(&mut self, proto: L4ProtocolType) {
-        self.buf[0x05] = L4ProtocolType::to_proto(proto);
+        self.buf[0x06] = L4ProtocolType::to_proto(proto);
+    }
+
+    pub fn set_src_addr(&mut self, addr: [u8; 0x10]) {
+        self.buf[0x08..0x18].copy_from_slice(&addr);
+    }
+
+    pub fn set_dst_addr(&mut self, addr: [u8; 0x10]) {
+        self.buf[0x18..0x28].copy_from_slice(&addr);
     }
 }
 
@@ -243,7 +248,7 @@ mod tests {
 
     #[test]
     fn l3_ipv4_test2() {
-        let mut buffer: [u8; 20] = [0; 20];
+        let mut buffer = [0u8; 20];
         set_l3_protocol(&mut buffer, L3ProtocolType::IPv4);
 
         let mut adapter = IPv4Adapter::bind(&mut buffer);
@@ -275,5 +280,23 @@ mod tests {
         assert_eq!(adapter.get_type_of_service(), 0x00);
         assert_eq!(adapter.get_flow_label(), 0x1b2ff);
         assert_eq!(adapter.get_ttl(), 64);
+    }
+
+    #[test]
+    fn l3_ipv6_test2() {
+        let mut buffer = [0u8; 40];
+        set_l3_protocol(&mut buffer, L3ProtocolType::IPv6);
+
+        let mut adapter = IPv6Adapter::bind(&mut buffer);
+        adapter.set_src_addr([0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x30, 0xe1, 0xf0, 0xda, 0xa6, 0xf2, 0x46]);
+        adapter.set_dst_addr([0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x4a, 0x5a, 0xec, 0xbf, 0x5a, 0x16, 0x0b]);
+        adapter.set_tlen(72);
+        adapter.set_type_of_service(0x00);
+        adapter.set_flow_label(0x1b2ff);
+        adapter.set_ttl(64);
+        adapter.set_protocol(L4ProtocolType::TCP);
+
+        assert_eq!(buffer[0x00..0x14], *b"\x60\x01\xB2\xFF\x00\x20\x06\x40\xFE\x80\x00\x00\x00\x00\x00\x00\x10\x30\xE1\xF0");
+        assert_eq!(buffer[0x14..0x28], *b"\xDA\xA6\xF2\x46\xFE\x80\x00\x00\x00\x00\x00\x00\x08\x4A\x5A\xEC\xBF\x5A\x16\x0B");
     }
 }

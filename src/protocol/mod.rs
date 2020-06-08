@@ -49,3 +49,39 @@ pub fn ltrim_bits<T: PrimInt>(data: T, bits: usize) -> T
 {
     return (data << bits) >> bits;
 }
+
+#[cfg(test)]
+mod protocol_tests
+{
+    use crate::protocol::*;
+    
+    #[test]
+    fn rtrim_test_01()
+    {
+        assert_eq!(rtrim_bits(0b11001100u8, 4), 0b11000000u8);
+    }
+
+    #[test]
+    fn rtrim_test_02()
+    {
+        assert_eq!(rtrim_bits(0b11111111u8, 7), 0b10000000u8);
+    }
+
+    #[test]
+    fn ltrim_test_01()
+    {
+        assert_eq!(ltrim_bits(0b11111111u8, 4), 0b00001111u8);
+    }
+
+    #[test]
+    fn ltrim_test_02()
+    {
+        assert_eq!(ltrim_bits(0b11110000u16, 4), 0b11110000u16);
+    }
+
+    #[test]
+    fn ltrim_test_03()
+    {
+        assert_eq!(ltrim_bits(0b11110000u8, 4), 0b00000000u8);
+    }
+}

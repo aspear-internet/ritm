@@ -51,7 +51,7 @@ pub fn ltrim_bits<T: PrimInt>(data: T, bits: usize) -> T
 }
 
 #[cfg(test)]
-mod protocol_tests
+mod proto_tests
 {
     use crate::protocol::*;
     

@@ -200,7 +200,7 @@ impl<'a> IPv6Adapter<'_>
 
 
 #[cfg(test)]
-mod tests {
+mod l3_proto_tests {
     use crate::protocol::l3protocol::*;
 
     #[test]

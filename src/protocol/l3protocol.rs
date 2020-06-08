@@ -77,23 +77,7 @@ impl<'a> IPv4Adapter<'_>
     }
 
     pub fn get_protocol(&self) -> L4ProtocolType {
-        let proto = self.buf[0x09];
-        if (proto == 0x06)
-        {
-            return L4ProtocolType::TCP;
-        }
-
-        if (proto == 0x11)
-        {
-            return L4ProtocolType::UDP;
-        }
-
-        if (proto == 0x01)
-        {
-            return L4ProtocolType::ICMP;
-        }
-
-        return L4ProtocolType::Unknown;
+        L4ProtocolType::from_proto(self.buf[0x09])
     }
 
     pub fn set_src_addr(&mut self, addr: [u8; 0x04]) {
@@ -107,11 +91,11 @@ impl<'a> IPv4Adapter<'_>
     pub fn set_hlen(&mut self, hlen: u8) {
         debug_assert!(hlen % 4 == 0         , "hlen is not aligned to 4!");
         debug_assert!(hlen / 4 <= 0b11110000, "hlen is too large!");
-        self.buf[0x00] = rtrim_bits(self.buf[0x00], 4) | hlen >> 4;
+        self.buf[0x00] = rtrim_bits(self.buf[0x00], 4) | (hlen / 4);
     }
 
     pub fn set_tlen(&mut self, tlen: u16) {
-        self.buf[0x02..0x03].copy_from_slice(&tlen.to_be_bytes());
+        self.buf[0x02..0x04].copy_from_slice(&tlen.to_be_bytes());
     }
 
     pub fn set_type_of_service(&mut self, tos: u8) {
@@ -119,17 +103,17 @@ impl<'a> IPv4Adapter<'_>
     }
 
     pub fn set_frag_ident(&mut self, data: u16) {
-        self.buf[0x04..0x05].copy_from_slice(&data.to_be_bytes());
+        self.buf[0x04..0x06].copy_from_slice(&data.to_be_bytes());
     }
 
     pub fn set_frag_flags(&mut self, data: u8) {
         debug_assert!(data <= 7, "fragmentation flag too large!");
-        self.buf[0x06] = rtrim_bits(self.buf[0x06], 3) | data;
+        self.buf[0x06] = ltrim_bits(self.buf[0x06], 3) | data << 5;
     }
 
     pub fn set_frag_offset(&mut self, data: u16) {
         let new_data = rtrim_bits(u16::from_be_bytes([self.buf[0x06], self.buf[0x07]]), 13) | data;
-        self.buf[0x06..0x07].copy_from_slice(&new_data.to_be_bytes());
+        self.buf[0x06..0x08].copy_from_slice(&new_data.to_be_bytes());
     }
 
     pub fn set_ttl(&mut self, ttl: u8) {
@@ -137,17 +121,11 @@ impl<'a> IPv4Adapter<'_>
     }
 
     pub fn set_checksum(&mut self, data: u16) {
-        self.buf[0x0a..0x0b].copy_from_slice(&data.to_be_bytes());
+        self.buf[0x0a..0x0c].copy_from_slice(&data.to_be_bytes());
     }
 
     pub fn set_protocol(&mut self, proto: L4ProtocolType) {
-        let mut cur_proto = self.buf[0x07];
-        match proto {
-            L4ProtocolType::Unknown => cur_proto = 0xFF,
-            L4ProtocolType::TCP     => cur_proto = 0x06,
-            L4ProtocolType::UDP     => cur_proto = 0x11,
-            L4ProtocolType::ICMP    => cur_proto = 0x01,
-        }
+        self.buf[0x09] = L4ProtocolType::to_proto(proto);
     }
 }
 
@@ -172,7 +150,7 @@ impl<'a> IPv6Adapter<'_>
     }
 
     pub fn get_tlen(&self) -> u16 {
-        u16::from_be_bytes([self.buf[0x04], self.buf[0x05]]) + self.get_hlen() as u16
+        u16::from_be_bytes([self.buf[0x04], self.buf[0x05]]) + 40
     }
 
     pub fn get_ttl(&self) -> u8 {
@@ -180,7 +158,7 @@ impl<'a> IPv6Adapter<'_>
     }
 
     pub fn get_protocol(&self) -> L4ProtocolType {
-        return L4ProtocolType::TCP;
+        L4ProtocolType::from_proto(self.buf[0x05])
     }
 
     pub fn get_src_addr(&self) -> [u8; 0x10] {
@@ -197,18 +175,21 @@ impl<'a> IPv6Adapter<'_>
     }
 
     pub fn set_flow_label(&mut self, label: u32) {
+        let data = rtrim_bits(u32::from_be_bytes([self.buf[0x00], self.buf[0x01], self.buf[0x02], self.buf[0x03]]), 12) | label >> 4;
+        self.buf[0x00..0x03].copy_from_slice(&data.to_be_bytes());
     }
 
     pub fn set_tlen(&mut self, tlen: u16) {
-
+        let plen = tlen - 40;
+        self.buf[0x04..0x05].copy_from_slice(&plen.to_be_bytes());
     }
 
     pub fn set_ttl(&mut self, ttl: u8) {
-
+        self.buf[0x07] = ttl;
     }
 
     pub fn set_protocol(&mut self, proto: L4ProtocolType) {
-
+        self.buf[0x05] = L4ProtocolType::to_proto(proto);
     }
 }
 
@@ -258,6 +239,27 @@ mod tests {
         assert_eq!(adapter.get_dst_addr(), [198, 199, 88, 104]);
         assert_eq!(adapter.get_hlen(), 20);
         assert_eq!(adapter.get_tlen(), 52);
+    }
+
+    #[test]
+    fn l3_ipv4_test2() {
+        let mut buffer: [u8; 20] = [0; 20];
+        set_l3_protocol(&mut buffer, L3ProtocolType::IPv4);
+
+        let mut adapter = IPv4Adapter::bind(&mut buffer);
+        adapter.set_hlen(20);
+        adapter.set_type_of_service(0);
+        adapter.set_tlen(52);
+        adapter.set_frag_ident(0);
+        adapter.set_frag_flags(0b010);
+        adapter.set_frag_offset(0);
+        adapter.set_ttl(64);
+        adapter.set_protocol(L4ProtocolType::TCP);
+        adapter.set_checksum(0x5881);
+        adapter.set_src_addr([192, 168, 2 , 107]);
+        adapter.set_dst_addr([198, 199, 88, 104]);
+
+        assert_eq!(buffer, *b"\x45\x00\x00\x34\x00\x00\x40\x00\x40\x06\x58\x81\xc0\xa8\x02\x6b\xc6\xc7\x58\x68");
     }
 
     #[test]

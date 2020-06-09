@@ -88,19 +88,19 @@ impl<'a> UDPAdapter<'_> {
     }
 
     pub fn get_src_port(&self) -> u16 {
-
+        u16::from_be_bytes([self.buf[0x00], self.buf[0x01]])
     }
 
     pub fn get_dst_port(&self) -> u16 {
-
+        u16::from_be_bytes([self.buf[0x02], self.buf[0x03]])
     }
 
     pub fn get_tlen(&self) -> u16 {
-
+        u16::from_be_bytes([self.buf[0x04], self.buf[0x05]])
     }
 
     pub fn get_checksum(&self) -> u16 {
-
+        u16::from_be_bytes([self.buf[0x06], self.buf[0x07]])
     }
 }
 
@@ -116,15 +116,18 @@ impl<'a> IGMPAdapter<'_> {
 
 #[cfg(test)]
 mod l4_proto_tests {
+    use crate::protocol::l4protocol::*;
+
     #[test]
     fn l4_tcp_test1() {
 
     }
 
+    #[test]
     fn l4_udp_test1() {
         let mut buffer = *b"\x00\x35\xf0\x3c\x00\x9a\xa3\xa4";
 
-        let adapter = UDPAdapter::bind(buffer);
+        let adapter = UDPAdapter::bind(&mut buffer);
         assert_eq!(adapter.get_src_port(), 53);
         assert_eq!(adapter.get_dst_port(), 61500);
         assert_eq!(adapter.get_tlen()    , 154);

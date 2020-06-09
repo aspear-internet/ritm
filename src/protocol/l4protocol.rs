@@ -120,7 +120,19 @@ mod l4_proto_tests {
 
     #[test]
     fn l4_tcp_test1() {
-
+        let mut buffer = *b"\x45\x00\x00\x34\x00\x00\x40\x00\x40\x06\x58\x81\xc0\xa8\x02\x6b\xc6\xc7\x58\x68\
+                            \xe7\x83\x01\xbb\xd5\x5f\xd9\xad\xd0\xc2\x54\xea\x80\x10\x16\xab\x50\x53\x00\x00\
+                            \x01\x01\x08\x0a\x51\x3c\x7b\x88\x0e\x2d\x94\x90";
+        
+        let adapter = TCPAdapter::bind(&mut buffer);
+        assert_eq!(adapter.get_src_port(), 59267);
+        assert_eq!(adapter.get_dst_port(), 443);
+        assert_eq!(adapter.get_seq_num(), 3579828653);
+        assert_eq!(adapter.get_ack_num(), 3502396650);
+        assert_eq!(adapter.get_hlen(), 32);
+        assert_eq!(adapter.get_flags(), TCPFlags::ACK);
+        assert_eq!(adapter.get_win_sz(), 5803);
+        assert_eq!(adapter.get_checksum(), 0x5053);
     }
 
     #[test]

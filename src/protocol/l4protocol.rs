@@ -79,6 +79,38 @@ impl<'a> TCPAdapter<'_> {
     pub fn get_checksum(&self) -> u16 {
         u16::from_be_bytes([self.buf[0x10], self.buf[0x11]])
     }
+
+    pub fn set_src_port(&mut self, port: u16) {
+        self.buf[0x00..0x02].copy_from_slice(&port.to_be_bytes())
+    }
+
+    pub fn set_dst_port(&mut self, port: u16) {
+        self.buf[0x02..0x04].copy_from_slice(&port.to_be_bytes());
+    }
+
+    pub fn set_seq_num(&mut self, seq_num: u32) {
+        self.buf[0x04..0x08].copy_from_slice(&seq_num.to_be_bytes())
+    }
+
+    pub fn set_ack_num(&mut self, ack_num: u32) {
+        self.buf[0x08..0x0c].copy_from_slice(&ack_num.to_be_bytes());
+    }
+
+    pub fn set_hlen(&mut self, hlen: u8) {
+        self.buf[0x0c] = ltrim_bits(self.buf[0x0c], 4) | (( hlen / 4 ) << 4 )
+    }
+
+    pub fn set_flags(&mut self, flags: TCPFlags) {
+        self.buf[0x0d] = flags.bits()
+    }
+
+    pub fn set_win_sz(&mut self, win_sz: u16) {
+        self.buf[0x0e..0x10].copy_from_slice(&win_sz.to_be_bytes())
+    }
+    
+    pub fn set_checksum(&mut self, checksum: u16) {
+        self.buf[0x10..0x12].copy_from_slice(&checksum.to_be_bytes())
+    }
 }
 
 #[allow(unused)]
@@ -101,6 +133,22 @@ impl<'a> UDPAdapter<'_> {
 
     pub fn get_checksum(&self) -> u16 {
         u16::from_be_bytes([self.buf[0x06], self.buf[0x07]])
+    }
+
+    pub fn set_src_port(&mut self, port: u16) {
+        self.buf[0x00..0x02].copy_from_slice(&port.to_be_bytes())
+    }
+
+    pub fn set_dst_port(&mut self, port: u16) {
+        self.buf[0x02..0x04].copy_from_slice(&port.to_be_bytes())
+    }
+
+    pub fn set_tlen(&mut self, tlen: u16) {
+        self.buf[0x04..0x06].copy_from_slice(&tlen.to_be_bytes())
+    }
+
+    pub fn set_checksum(&mut self, checksum: u16) {
+        self.buf[0x06..0x08].copy_from_slice(&checksum.to_be_bytes())
     }
 }
 

@@ -1,5 +1,5 @@
-use crate::protocol::*;
 use crate::protocol::l3protocol::*;
+use crate::protocol::*;
 
 use bitflags::bitflags;
 use std::convert::TryInto;
@@ -19,24 +19,33 @@ bitflags! {
 
 pub fn get_l4_protocol(buf: &mut [u8]) -> L4ProtocolType {
     match get_l3_protocol(buf) {
-        L3ProtocolType::IPv4    => return IPv4Adapter::bind(buf).get_protocol(),
-        L3ProtocolType::IPv6    => return IPv6Adapter::bind(buf).get_protocol(),
-        L3ProtocolType::Unknown => unreachable!()
+        L3ProtocolType::IPv4 => return IPv4Adapter::bind(buf).get_protocol(),
+        L3ProtocolType::IPv6 => return IPv6Adapter::bind(buf).get_protocol(),
+        L3ProtocolType::Unknown => unreachable!(),
     }
 }
 
 pub fn set_l4_protocol(buf: &mut [u8], proto: L4ProtocolType) {
     match get_l3_protocol(buf) {
-        L3ProtocolType::IPv4    => IPv4Adapter::bind(buf).set_protocol(proto),
-        L3ProtocolType::IPv6    => IPv6Adapter::bind(buf).set_protocol(proto),
-        L3ProtocolType::Unknown => unreachable!()
+        L3ProtocolType::IPv4 => IPv4Adapter::bind(buf).set_protocol(proto),
+        L3ProtocolType::IPv6 => IPv6Adapter::bind(buf).set_protocol(proto),
+        L3ProtocolType::Unknown => unreachable!(),
     }
 }
 
-pub struct TCPAdapter<'a> { buf: &'a mut [u8] }
-pub struct UDPAdapter<'a> { buf: &'a mut [u8] }
-pub struct ICMPAdapter<'a> { buf: &'a mut [u8] }
-pub struct IGMPAdapter<'a> { buf: &'a mut [u8] }
+pub struct TCPAdapter<'a> {
+    buf: &'a mut [u8],
+}
+pub struct UDPAdapter<'a> {
+    buf: &'a mut [u8],
+}
+pub struct ICMPAdapter<'a> {
+    buf: &'a mut [u8],
+}
+pub struct IGMPAdapter<'a> {
+    buf: &'a mut [u8],
+}
+
 
 #[allow(unused)]
 impl<'a> TCPAdapter<'_> {
@@ -53,11 +62,21 @@ impl<'a> TCPAdapter<'_> {
     }
 
     pub fn get_seq_num(&self) -> u32 {
-        u32::from_be_bytes([self.buf[0x04], self.buf[0x05], self.buf[0x06], self.buf[0x07]])
+        u32::from_be_bytes([
+            self.buf[0x04],
+            self.buf[0x05],
+            self.buf[0x06],
+            self.buf[0x07],
+        ])
     }
 
     pub fn get_ack_num(&self) -> u32 {
-        u32::from_be_bytes([self.buf[0x08], self.buf[0x09], self.buf[0x0a], self.buf[0x0b]])
+        u32::from_be_bytes([
+            self.buf[0x08],
+            self.buf[0x09],
+            self.buf[0x0a],
+            self.buf[0x0b],
+        ])
     }
 
     pub fn get_hlen(&self) -> u8 {
@@ -68,7 +87,7 @@ impl<'a> TCPAdapter<'_> {
         TCPFlags::from_bits(self.buf[0x0d]).unwrap()
     }
 
-    pub fn has_flags(&self, flag: TCPFlags) -> bool  {
+    pub fn has_flags(&self, flag: TCPFlags) -> bool {
         (self.get_flags() & flag) == flag
     }
 
@@ -97,7 +116,7 @@ impl<'a> TCPAdapter<'_> {
     }
 
     pub fn set_hlen(&mut self, hlen: u8) {
-        self.buf[0x0c] = ltrim_bits(self.buf[0x0c], 4) | (( hlen / 4 ) << 4 )
+        self.buf[0x0c] = ltrim_bits(self.buf[0x0c], 4) | ((hlen / 4) << 4)
     }
 
     pub fn set_flags(&mut self, flags: TCPFlags) {
@@ -107,7 +126,7 @@ impl<'a> TCPAdapter<'_> {
     pub fn set_win_sz(&mut self, win_sz: u16) {
         self.buf[0x0e..0x10].copy_from_slice(&win_sz.to_be_bytes())
     }
-    
+
     pub fn set_checksum(&mut self, checksum: u16) {
         self.buf[0x10..0x12].copy_from_slice(&checksum.to_be_bytes())
     }
@@ -153,24 +172,21 @@ impl<'a> UDPAdapter<'_> {
 }
 
 #[allow(unused)]
-impl<'a> ICMPAdapter<'_> {
-
-}
+impl<'a> ICMPAdapter<'_> {}
 
 #[allow(unused)]
-impl<'a> IGMPAdapter<'_> {
-
-}
+impl<'a> IGMPAdapter<'_> {}
 
 #[cfg(test)]
 mod l4_proto_tests {
-    use crate::protocol::l4protocol::*;
+    use super::l4protocol::*;
 
     #[test]
     fn l4_tcp_test1() {
-        let mut buffer = *b"\xe7\x83\x01\xbb\xd5\x5f\xd9\xad\xd0\xc2\x54\xea\x80\x10\x16\xab\x50\x53\x00\x00\
+        let mut buffer =
+            *b"\xe7\x83\x01\xbb\xd5\x5f\xd9\xad\xd0\xc2\x54\xea\x80\x10\x16\xab\x50\x53\x00\x00\
                             \x01\x01\x08\x0a\x51\x3c\x7b\x88\x0e\x2d\x94\x90";
-        
+
         let adapter = TCPAdapter::bind(&mut buffer);
         assert_eq!(adapter.get_src_port(), 59267);
         assert_eq!(adapter.get_dst_port(), 443);
@@ -189,7 +205,7 @@ mod l4_proto_tests {
         let adapter = UDPAdapter::bind(&mut buffer);
         assert_eq!(adapter.get_src_port(), 53);
         assert_eq!(adapter.get_dst_port(), 61500);
-        assert_eq!(adapter.get_tlen()    , 154);
+        assert_eq!(adapter.get_tlen(), 154);
         assert_eq!(adapter.get_checksum(), 0xa3a4);
     }
 }

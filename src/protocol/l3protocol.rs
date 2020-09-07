@@ -8,27 +8,30 @@ pub fn get_l3_protocol(buf: &[u8]) -> L3ProtocolType {
     match v {
         4 => return L3ProtocolType::IPv4,
         6 => return L3ProtocolType::IPv6,
-        _ => return L3ProtocolType::Unknown
+        _ => return L3ProtocolType::Unknown,
     }
 }
 
 pub fn set_l3_protocol(buf: &mut [u8], proto: L3ProtocolType) {
     let mut v = ltrim_bits(buf[0], 4);
     match proto {
-        L3ProtocolType::IPv4    => v |= 4    << 4,
-        L3ProtocolType::IPv6    => v |= 6    << 4,
-        L3ProtocolType::Unknown => v |= 0xFF << 4
+        L3ProtocolType::IPv4 => v |= 4 << 4,
+        L3ProtocolType::IPv6 => v |= 6 << 4,
+        L3ProtocolType::Unknown => v |= 0xFF << 4,
     }
 
     buf[0] = v;
 }
 
-pub struct IPv4Adapter<'a> { buf: &'a mut [u8] }
-pub struct IPv6Adapter<'a> { buf: &'a mut [u8] }
+pub struct IPv4Adapter<'a> {
+    buf: &'a mut [u8],
+}
+pub struct IPv6Adapter<'a> {
+    buf: &'a mut [u8],
+}
 
 #[allow(unused)]
-impl<'a> IPv4Adapter<'_>
-{
+impl<'a> IPv4Adapter<'_> {
     pub fn bind(buf: &'a mut [u8]) -> IPv4Adapter {
         debug_assert!(buf.len() >= 20, "bad ipv4 heaader size!");
         return IPv4Adapter { buf };
@@ -86,7 +89,7 @@ impl<'a> IPv4Adapter<'_>
     }
 
     pub fn set_hlen(&mut self, hlen: u8) {
-        debug_assert!(hlen % 4 == 0         , "hlen is not aligned to 4!");
+        debug_assert!(hlen % 4 == 0, "hlen is not aligned to 4!");
         debug_assert!(hlen / 4 <= 0b11110000, "hlen is too large!");
         self.buf[0x00] = rtrim_bits(self.buf[0x00], 4) | (hlen / 4);
     }
@@ -127,8 +130,7 @@ impl<'a> IPv4Adapter<'_>
 }
 
 #[allow(unused)]
-impl<'a> IPv6Adapter<'_>
-{
+impl<'a> IPv6Adapter<'_> {
     pub fn bind(buf: &'a mut [u8]) -> IPv6Adapter {
         debug_assert!(buf.len() >= 40, "bad ipv6 heaader size!");
         return IPv6Adapter { buf };
@@ -139,7 +141,15 @@ impl<'a> IPv6Adapter<'_>
     }
 
     pub fn get_flow_label(&self) -> u32 {
-        ltrim_bits(u32::from_be_bytes([self.buf[0x00], self.buf[0x01], self.buf[0x02], self.buf[0x03]]), 4)
+        ltrim_bits(
+            u32::from_be_bytes([
+                self.buf[0x00],
+                self.buf[0x01],
+                self.buf[0x02],
+                self.buf[0x03],
+            ]),
+            4,
+        )
     }
 
     pub fn get_hlen(&self) -> u8 {
@@ -172,7 +182,15 @@ impl<'a> IPv6Adapter<'_>
     }
 
     pub fn set_flow_label(&mut self, label: u32) {
-        let data = rtrim_bits(u32::from_be_bytes([self.buf[0x00], self.buf[0x01], self.buf[0x02], self.buf[0x03]]), 12) | label;
+        let data = rtrim_bits(
+            u32::from_be_bytes([
+                self.buf[0x00],
+                self.buf[0x01],
+                self.buf[0x02],
+                self.buf[0x03],
+            ]),
+            12,
+        ) | label;
         self.buf[0x00..0x04].copy_from_slice(&data.to_be_bytes());
     }
 
@@ -198,10 +216,9 @@ impl<'a> IPv6Adapter<'_>
     }
 }
 
-
 #[cfg(test)]
 mod l3_proto_tests {
-    use crate::protocol::l3protocol::*;
+    use super::l3protocol::*;
 
     #[test]
     fn l3_proto_test1() {
@@ -237,10 +254,11 @@ mod l3_proto_tests {
 
     #[test]
     fn l3_ipv4_test1() {
-        let mut buffer: [u8; 20] = *b"\x45\x00\x00\x34\x00\x00\x40\x00\x40\x06\x58\x81\xc0\xa8\x02\x6b\xc6\xc7\x58\x68";
+        let mut buffer: [u8; 20] =
+            *b"\x45\x00\x00\x34\x00\x00\x40\x00\x40\x06\x58\x81\xc0\xa8\x02\x6b\xc6\xc7\x58\x68";
 
         let adapter = IPv4Adapter::bind(&mut buffer);
-        assert_eq!(adapter.get_src_addr(), [192, 168, 2 , 107]);
+        assert_eq!(adapter.get_src_addr(), [192, 168, 2, 107]);
         assert_eq!(adapter.get_dst_addr(), [198, 199, 88, 104]);
         assert_eq!(adapter.get_hlen(), 20);
         assert_eq!(adapter.get_tlen(), 52);
@@ -261,10 +279,13 @@ mod l3_proto_tests {
         adapter.set_ttl(64);
         adapter.set_protocol(L4ProtocolType::TCP);
         adapter.set_checksum(0x5881);
-        adapter.set_src_addr([192, 168, 2 , 107]);
+        adapter.set_src_addr([192, 168, 2, 107]);
         adapter.set_dst_addr([198, 199, 88, 104]);
 
-        assert_eq!(buffer, *b"\x45\x00\x00\x34\x00\x00\x40\x00\x40\x06\x58\x81\xc0\xa8\x02\x6b\xc6\xc7\x58\x68");
+        assert_eq!(
+            buffer,
+            *b"\x45\x00\x00\x34\x00\x00\x40\x00\x40\x06\x58\x81\xc0\xa8\x02\x6b\xc6\xc7\x58\x68"
+        );
     }
 
     #[test]
@@ -273,8 +294,20 @@ mod l3_proto_tests {
                                       \xDA\xA6\xF2\x46\xFE\x80\x00\x00\x00\x00\x00\x00\x08\x4A\x5A\xEC\xBF\x5A\x16\x0B";
 
         let adapter = IPv6Adapter::bind(&mut buffer);
-        assert_eq!(adapter.get_src_addr(), [0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x30, 0xe1, 0xf0, 0xda, 0xa6, 0xf2, 0x46]);
-        assert_eq!(adapter.get_dst_addr(), [0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x4a, 0x5a, 0xec, 0xbf, 0x5a, 0x16, 0x0b]);
+        assert_eq!(
+            adapter.get_src_addr(),
+            [
+                0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x30, 0xe1, 0xf0, 0xda, 0xa6,
+                0xf2, 0x46
+            ]
+        );
+        assert_eq!(
+            adapter.get_dst_addr(),
+            [
+                0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x4a, 0x5a, 0xec, 0xbf, 0x5a,
+                0x16, 0x0b
+            ]
+        );
         assert_eq!(adapter.get_hlen(), 40);
         assert_eq!(adapter.get_tlen(), 72);
         assert_eq!(adapter.get_type_of_service(), 0x00);
@@ -288,15 +321,27 @@ mod l3_proto_tests {
         set_l3_protocol(&mut buffer, L3ProtocolType::IPv6);
 
         let mut adapter = IPv6Adapter::bind(&mut buffer);
-        adapter.set_src_addr([0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x30, 0xe1, 0xf0, 0xda, 0xa6, 0xf2, 0x46]);
-        adapter.set_dst_addr([0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x4a, 0x5a, 0xec, 0xbf, 0x5a, 0x16, 0x0b]);
+        adapter.set_src_addr([
+            0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x30, 0xe1, 0xf0, 0xda, 0xa6,
+            0xf2, 0x46,
+        ]);
+        adapter.set_dst_addr([
+            0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x4a, 0x5a, 0xec, 0xbf, 0x5a,
+            0x16, 0x0b,
+        ]);
         adapter.set_tlen(72);
         adapter.set_type_of_service(0x00);
         adapter.set_flow_label(0x1b2ff);
         adapter.set_ttl(64);
         adapter.set_protocol(L4ProtocolType::TCP);
 
-        assert_eq!(buffer[0x00..0x14], *b"\x60\x01\xB2\xFF\x00\x20\x06\x40\xFE\x80\x00\x00\x00\x00\x00\x00\x10\x30\xE1\xF0");
-        assert_eq!(buffer[0x14..0x28], *b"\xDA\xA6\xF2\x46\xFE\x80\x00\x00\x00\x00\x00\x00\x08\x4A\x5A\xEC\xBF\x5A\x16\x0B");
+        assert_eq!(
+            buffer[0x00..0x14],
+            *b"\x60\x01\xB2\xFF\x00\x20\x06\x40\xFE\x80\x00\x00\x00\x00\x00\x00\x10\x30\xE1\xF0"
+        );
+        assert_eq!(
+            buffer[0x14..0x28],
+            *b"\xDA\xA6\xF2\x46\xFE\x80\x00\x00\x00\x00\x00\x00\x08\x4A\x5A\xEC\xBF\x5A\x16\x0B"
+        );
     }
 }
